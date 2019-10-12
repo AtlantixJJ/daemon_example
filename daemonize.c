@@ -87,6 +87,7 @@ static pid_t doublefork(int *pipefd)
                     return -1;
                     break;
                 case 0:  /* second child - daemon */
+                    /* RMK: [14] From the daemon process, notify the original process started that initialization is complete. This can be implemented via an unnamed pipe or similar communication channel that is created before the first fork() and hence available in both the original and the daemon process. */
                     /* write success error code */
                     write_code(pipefd[1], 0);
                     /* write daemon process PID back to the first parent */
@@ -109,6 +110,7 @@ static pid_t doublefork(int *pipefd)
             waitpid(pid, &status, 0);
             /* close write side of the pipe */
             close(pipefd[1]);
+            /* RMK: [14] parent read the code from here. */
             /* read error code */
             code = read_code(pipefd[0]);
             /* read daemon process PID on success */
@@ -220,6 +222,7 @@ pid_t daemonize(int flags)
         return -1;
     }
 
+    /* RMK: This is fore [14]. */
     /* create pipes for communication with daemon */
     if (pipe(pipefd) != 0)
     {
@@ -328,6 +331,9 @@ static int check_pid_file(const char *pid_file_path)
 
     return 0;
 }
+
+/* RMK: [13] Unsure this have been implemented.
+    In the daemon process, drop privileges, if possible and applicable. */
 
 pid_t rundaemon(int flags, int (*daemon_func)(void *), void *udata, int *exit_code, const char *pid_file_path)
 {
