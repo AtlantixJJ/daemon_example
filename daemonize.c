@@ -54,6 +54,7 @@ static pid_t read_pid(int fd)
     return pid;
 }
 
+/* RMK: [8] Double fork the daemon and detach the child. */
 /* the actual function which performs forking */
 static pid_t doublefork(int *pipefd)
 {
@@ -86,6 +87,7 @@ static pid_t doublefork(int *pipefd)
                     return -1;
                     break;
                 case 0:  /* second child - daemon */
+                    /* RMK: [14] From the daemon process, notify the original process started that initialization is complete. This can be implemented via an unnamed pipe or similar communication channel that is created before the first fork() and hence available in both the original and the daemon process. */
                     /* write success error code */
                     write_code(pipefd[1], 0);
                     /* write daemon process PID back to the first parent */
@@ -94,6 +96,7 @@ static pid_t doublefork(int *pipefd)
                     return 0;
                     break;
                 default: /* second parent */
+                    /* RML: [8] In the second fork, the first child should exit. Leave the second child in background. */
                     exit(0);
                     break;
             }
@@ -107,6 +110,7 @@ static pid_t doublefork(int *pipefd)
             waitpid(pid, &status, 0);
             /* close write side of the pipe */
             close(pipefd[1]);
+            /* RMK: [14] parent read the code from here. */
             /* read error code */
             code = read_code(pipefd[0]);
             /* read daemon process PID on success */
@@ -135,6 +139,8 @@ static pid_t doublefork(int *pipefd)
     return -1;
 }
 
+/* RMK: [9] The input(0), output(1), err(2) file descriptor should be closed
+        and redirect to /dev/null */
 /* redirect standard file descriptors */
 static int redirect_fds(void)
 {
@@ -218,6 +224,7 @@ pid_t daemonize(int flags)
         return -1;
     }
 
+    /* RMK: This is fore [14]. */
     /* create pipes for communication with daemon */
     if (pipe(pipefd) != 0)
     {
@@ -252,6 +259,9 @@ pid_t daemonize(int flags)
         }
     }
 
+    /* RMK: [11] In the daemon process, change the current directory to
+        the root directory (/), in order to avoid that the daemon 
+        involuntarily blocks mount points from being unmounted. */
     /* change daemon's working directory */
     if (!(flags & DMN_NO_CHDIR))
     {
@@ -261,6 +271,9 @@ pid_t daemonize(int flags)
         }
     }
 
+    /* RMK: [10] reset the umask to 0, so that the file modes passed to 
+            open(), mkdir() and suchlike directly control the access mode of
+            the created files and directories. */
     /* change umask */
     if (!(flags & DMN_NO_UMASK))
     {
@@ -321,6 +334,9 @@ static int check_pid_file(const char *pid_file_path)
     return 0;
 }
 
+/* RMK: [13] Unsure this have been implemented.
+    In the daemon process, drop privileges, if possible and applicable. */
+
 pid_t rundaemon(int flags, int (*daemon_func)(void *), void *udata, int *exit_code, const char *pid_file_path)
 {
     pid_t pid;
@@ -335,6 +351,8 @@ pid_t rundaemon(int flags, int (*daemon_func)(void *), void *udata, int *exit_co
         return -1;
     }
 
+    /* RMK: [12] write the daemon PID to a PID file to ensure that the daemon cannot be started more than once. This must be implemented in race-free fashion so that the PID file is only updated when it is verified at the same time that the PID previously stored in the PID file no longer exists or belongs to a foreign process. */
+    /* RMK: not sure if this code is race-free. */
     /* check PID file */
     if (pid_file_path != NULL && *pid_file_path)
     {
@@ -362,6 +380,7 @@ pid_t rundaemon(int flags, int (*daemon_func)(void *), void *udata, int *exit_co
         return pid;
     }
 
+    /* RMK: [12] also create PID file. */
     /* create PID file */
     if (pid_file_path != NULL && *pid_file_path)
     {
