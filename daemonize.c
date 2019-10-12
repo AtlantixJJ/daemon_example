@@ -58,7 +58,7 @@ static pid_t read_pid(int fd)
 static pid_t doublefork(int *pipefd)
 {
     pid_t pid;
-
+/* RMK: sysv 5 Call fork(), to create a background process. */
     switch ((pid = fork()))
     {
         case -1: /* error */
@@ -68,7 +68,7 @@ static pid_t doublefork(int *pipefd)
             break;
         case 0:  /* first  child */
             close(pipefd[0]); /* close read side of the pipe */
-
+/* RMK: sysv 6  call setsid() to detach from any terminal and create an independent session.*/
             /* create session */
             if (setsid() == -1) /* error */
             {
@@ -76,7 +76,7 @@ static pid_t doublefork(int *pipefd)
                 close(pipefd[1]);
                 return -1;
             }
-
+/* RMK: sysv 7 Call exit() in the first child, so that only the second child (the actual daemon process) stays around. */
             /* fork daemon */
             switch ((pid = fork()))
             {
@@ -171,7 +171,8 @@ pid_t daemonize(int flags)
     struct rlimit rl;
     sigset_t sigset;
     int i;
-
+/* RMK: sysv 1 */  
+/* proc/self/fd??? */
     /* close all open files, except stdin, stdout, stderr */
     if (!(flags & DMN_NO_CLOSE))
     {
@@ -200,6 +201,7 @@ pid_t daemonize(int flags)
         /* sane default for the less common systems */
         const int nsig = 32;
 #endif
+/* RMK: sysv 2 resetting all signal handler to default SIG_DFL. */
         for (i = 0; i < nsig; i++)
         {
             signal(i, SIG_DFL);
@@ -208,7 +210,7 @@ pid_t daemonize(int flags)
 
     /* reset error code */
     errno = 0;
-
+/* RMK: sysv 3, Reset the signal mask using sigprocmask().  */
     /* explicitly block all signals */
     sigfillset(&sigset);
     if (sigprocmask(SIG_BLOCK, &sigset, NULL) != 0)
